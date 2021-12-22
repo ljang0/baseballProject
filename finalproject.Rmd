@@ -1,0 +1,428 @@
+---
+title: "36-315 Final Project"
+author: "Lawrence Jang, Jaemin Lee, Deepro Hoque"
+date: "12/4/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+For our 36-315 final project, our group decided to utilize Sean Lahman's
+Baseball Database. Lahman's database can be installed using the command
+`install.packages("Lahman")` and can be accessed by running
+`library("Lahman")` in the R console. 
+
+As our group is full of avid baseball fans, we wanted to use the Lahman 
+database to answer a handful of research questions; our 3
+research questions are listed below.
+
+**1) How have the outcomes of a baseball game changed over time, with special**
+**regard to the three true outcomes?**
+
+**2) What background factors are significant or highly correlated with**
+**producing successful Major League Baseball players?**
+
+**3) What factors determine a winning MLB team, and how much does it impact**
+**revenue and front office budgetary decisions when constructing an MLB team?**
+
+
+## Lahman Database 
+
+Before we dive into our research questions, we will provide some context
+on the Lahman Database and the data we are working with. The Lahman Database
+is compiled by an investigative reporter named Sean Lahman, who works for
+USA Today. He refers to the database as "an open-source collection of baseball 
+statistics".
+
+The Lahman Database contains 25+ dataframes, which contain the cumulative
+pitching, hitting, fielding, teams, and award statistics for MLB
+from the different eras of baseball spanning 1871-1875. If you
+would like more information on the database and its different tables, 
+feel free to run the command `help(Lahman)`.
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(Lahman)
+```
+
+Thus, given the plethora of datasets and different fields to explore
+in the Lahman database, we chose specific tables to tackle each question. We 
+will go into detail on the dataframes we used for oour specific research
+questions in their respective sections below.
+
+## First Research Question
+
+As stated above, our first research question was **How have the outcomes of a **
+**baseball game changed over time, with special regard to the three true outcomes?**
+The three true outcome trend signifies the change in baseball as the highest
+probabilities ofat-bat outcomes have become walks, home-runs, and 
+strikeouts over time. We attempted to investigate this change through 
+time-series analysis.
+
+For this research question, investigating the trends of at-bat outcomes, 
+we pulled our data from the Batting table. The Batting table consists of batting 
+statistics, with each row in the table representing a single player given a
+certain year's different hitting metrics. The important variables
+we utilized are the following:
+
++ playerID, an individual player ID code
++ yearID, Year
++ lgID, League ID
++ AB, number of at bats a batter accumulated in a year
++ H, number of hits by a batter in a year
++ X2B, number of doubles by a batter in a year
++ X3B, number of triples by a batter in a year
++ HR, number of home runs by a batter in a year
++ SB, number of stolen bases by a batter in a year
++ BB, number of a walks by a batter in a year
++ SO, number of strikeouts by a batter in a year
+
+We used the variables above to aggregate league-wide trends through a 
+time-series analysis to investigate the changes in the outcomes in baseball.
+
+You can access the Batting table after loading in the Lahman Database as such 
+below. We display the first five rows of Batting below.
+
+```{r, echo=FALSE}
+Batting[1:5,]
+```
+
+We performed filtering such that our data consists of statistics from the year 2000 and on, 
+as this three true outcome trend has been a recent development over the 
+past couple of decades. We decided to perform preprocessing to get
+league-wide aggregates for our desired statistics. Furthermore, we decided to 
+group by different leagues across the different years. 
+
+```{r,warning=FALSE,echo=FALSE, message=FALSE}
+library(tidyverse)
+df = Batting
+df = df %>% filter(yearID >= 2000)
+batcounts = df %>% group_by(yearID, lgID) %>% dplyr::summarize(hr = sum(HR),sb = sum(SB), ab = sum(AB),xb = sum(X2B) + sum(X3B), h = sum(H), so = sum(SO), bb = sum(BB))
+batcounts$hrate = batcounts$hr/batcounts$ab
+batcounts$sb = batcounts$sb/batcounts$ab
+batcounts$xbrate = batcounts$xb/batcounts$ab
+batcounts$avg = batcounts$h/batcounts$ab
+batcounts$krate = batcounts$so/batcounts$ab
+batcounts$walkrate = batcounts$bb/batcounts$ab
+batcounts$avg = batcounts$h/batcounts$ab
+```
+
+We display the first five rows of our newly constructed dataframe with the 
+outcome rates below.
+
+```{r, echo=FALSE}
+batcounts[1:5,]
+```
+
+From our newly constructed statistics, we made the following plots below.
+
+### Plot 1
+
+Our first plot displays the historical walk and strikeout rates from the 
+last 20 MLB seasons. We have a geom_line using the `loess` method on 
+our ggplot for both walk and strikeout rates, and we see a stark increase
+in the number of strikeouts over the past 20 years and a slight increase
+in walks over the past 5 years. This graph shows that the trend of the
+true three outcomes is increasing and the everchanging nature of baseball
+outcomes with different eras.
+
+```{r, echo=FALSE}
+ggplot(batcounts, aes(yearID)) + 
+  geom_line(aes(y = krate, colour = "Strikeout Rate")) + 
+  geom_line(aes(y = walkrate, colour = "Walk Rate")) + 
+  labs(title = "MLB Historical Walk and Strikeout Rate", subtitle = "From the 2000-2020 Seasons") + 
+  labs(y = "Percentage", x = "Year", colour = "Statistic") +
+  facet_grid(~ lgID)
+```
+
+### Plot 2
+
+Our second plot displays the historical home run and extra base hit rates from the 
+last 20 MLB seasons. We again have a geom_line using the `loess` method on 
+our ggplot for both home run and extra base hit rates. We see that there is a 
+deep increase in the home run rate and a decrease in extra base hit rate in 
+progressing years. This graph further adds to our three true outcome hypothesis;
+we see that there is an intuitively inverse relationship between
+extra base hits and home runs. As batters are emphasizing on hitting 
+hard hit balls over the wall rather than throughout the field, this
+has led to less balls being in play, with more home runs.
+
+```{r, echo=FALSE}
+ggplot(batcounts, aes(yearID)) + 
+  geom_line(aes(y = hrate, colour = "Home Run Rate")) +
+  geom_line(aes(y = xbrate, colour = "Extra Base Hits Rate")) + 
+  labs(title = "MLB Historical Home Run and Extra Base Hit Rate", subtitle = "Beginning from the 2000 Season") + labs(y = "Percentage", x = "Year", colour = "Statistic") +
+    facet_grid(~ lgID)
+```
+
+### Plot 3
+
+For our final plot regarding our first research question, we decided to plot a 
+time-series graph of the historical trend in MLB-wide average, split and
+colored across the different leagues. This scatterplot with `loess` trend
+lines shows that the average rate, which is the rate at which batters 
+attain a hit from an at-bat, has progressivle decreased over the past 20 years.
+We also see that there is a difference across the two leagues; as the AL 
+(American League) has a designated hitter bat for the pitcher, this leads
+to the inflation in average for the AL trend line. This graph shows again that
+the ball is being put in play less in the MLB, and moving towards the 
+three true outcomes.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = batcounts, aes(x = yearID, y = avg, col = lgID)) + geom_point() +
+  geom_smooth(se = F) +
+  labs(title = "MLB Historical Average Rate", subtitle = "Colored by Different Leagues",
+       x = "Year", y = "Percentage")
+```
+
+
+
+## Second Research Question
+
+Our second research question was **What background factors are significant or highly correlated with producing successful Major League Baseball players?**
+As we are given biographical data consisting of player's birthdays, hometowns,
+and home countries, we wanted to see if there were any consistent trends 
+in producing MLB players.
+
+For this research question, we pulled from the the People table. The People
+table consists of biographical data for every player to play in the MLB.
+We used the following variables from the People table to conduct our analysis.
+
++ playerID, an individual player ID code
++ birthMonth, Month player was born
++ birthCountry, Country where player was born
++ birthState, State where player was born
+
+Here is a look into the first five rows of the People dataframe.
+
+```{r, echo=FALSE}
+People[1:5,]
+```
+
+For this research question, we employed the use of heat maps for the United 
+States. We use `map_data("state")` to get the longitudinal and latitudinal 
+values to create our heat map across different states. We display this 
+the first 5 rows of this dataframe below. We also load in the 
+`usdata` library in order to conver the state abbreviations to match
+the region state names in the dataframe below.
+```{r, echo=FALSE}
+map_data("state")[1:5,]
+```
+
+### Plot 1
+
+For our first plot, we made a bar plot displaying the frequencies of
+the top 8 countries that produce the most MLB players. From this graph,
+we get an understanding of the global scene on baseball players; most
+MLB players are from the USA, followed by countries in Latin America.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+countries = People %>% group_by(birthCountry) %>% dplyr::summarize(n = n()) %>% arrange(-n)
+countries = countries %>% top_n(8)
+ggplot(data = countries, aes(x = reorder(birthCountry,-n), y = n)) + geom_bar(stat = "identity", fill = "blue", col = "orange") +
+  labs(title = "MLB Players by Top 8 Home Countries", x = "Home Country", y = "Player Count")
+```
+
+### Plot 2
+
+As we saw that most players are from the United States, we want to get
+an understanding of which regions of the United States produce the most players.
+Thus, we create a heat map of the United States, which the color of each state
+representing the frequency of players produced by the respective state. We see
+that the majority of players come from the state of California, with
+a little more production of players in the Northeast, Midwest, and Southeast.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(usdata)
+state.data = map_data("state")
+# we exclude Hawaii and Alaska for our map
+us = subset(People, birthState != "AK" & birthState != "HI" & birthCountry == "USA")
+us = us %>% group_by(birthState) %>% dplyr::summarize(n = n()) %>% arrange(-n)
+us$lowerState = tolower(abbr2state(us$birthState))
+# we merge the state locational data and player production datasets
+merged = state.data %>% left_join(us, by = c("region" = "lowerState"))
+ggplot(merged) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = n), 
+               color = "black") + 
+  scale_fill_gradient2(high = "red", low = "darkblue", 
+                       mid = "lightblue", midpoint = 100) +
+  theme_void() +
+  coord_map("polyconic") + 
+  labs(title = "MLB Players by Home State",
+       fill = "Player Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Plot 3
+
+For our third plot, we created a heat map based on the number of Hall of
+Famers by state. By creating this graph, we will inspect if the states that
+produce the number of truly successful players is different than the frequency
+at which they produce all MLB players.
+In order to do so, we accessed the the HallOfFame table
+in the Lahman Database. By filtering the HallOfFame table
+for `inducted ==  Y`, we get a dataframe of all the Hall of Fame members.
+
+```{r, echo=FALSE}
+inducted = HallOfFame %>% filter(inducted == "Y")
+inducted[1:5,]
+```
+
+In order to create our heat map, we merge the inducted Hall of Fame
+table with the player biographical table by playerID. Then, we follow the same
+procedure as in Plot 2 to find the number of players by state by joining
+with our longitudinal and latitudinal table.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# join the two tables
+merge2 = merge(inducted, People, by = "playerID")
+merge2 = merge2 %>% group_by(birthState) %>% dplyr::summarize(n = n()) %>% arrange(-n)
+merge2$lowerState = tolower(abbr2state(merge2$birthState))
+merge3 = state.data %>% left_join(merge2, by = c("region" = "lowerState"))
+ggplot(merge3) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = n), 
+               color = "black") + 
+  scale_fill_gradient2(high = "red", low = "blue", 
+                       mid = "lightyellow1", midpoint = 15) +
+  theme_void() +
+  coord_map("polyconic") + 
+  labs(title = "Hall Of Fame Players by Home State", subtitle = "States with 0 HOFers are Colored Grey",
+       fill = "Player Count") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+
+```
+
+In the plot, we see that the heat map loosely follows the heat map from 
+Plot 2; thus, we can observe that the same top states California, New York,
+and others in the Midwest and Northeast produce the MLB's top talent.
+
+
+## Third Research Question
+
+Our third research question we posed was **What factors determine a winning MLB team, and how much does it impact revenue and front office budgetary decisions when constructing an MLB team?**
+
+In order to investigate this question, we utilized the Salaries and Teams 
+tables given to us in the Lahman Database.
+
+From the Salaries table, we find the player salary data for a given 
+year and team. We display the first five rows of the table below.
+
+```{r, echo=FALSE}
+Salaries[1:5,]
+```
+
+From the Teams table, we are given the performance statistics and standings
+of a team given a certain year. From this table, there are 48 variables;
+however, we will mainly utilize the following variables:
+
++ yearID, the code of a specific year
++ lgID, the code of a given league
++ G, number of games played
++ W, number of wins
++ R, number of runs scored
++ RA, number of runs allowed
+
+We want to utilize the mentioned variables to calculate the winning percentage
+and run differential of a team for a given year. Given the study of the 
+Pythagorean Theorem of Baseball (https://www.baseball-reference.com/bullpen/Pythagorean_Theorem_of_Baseball#:~:text=The%20Pythagorean%20Theorem%20of%20Baseball,a%20team's%20actual%20winning%20percentage.),
+we want to use run difference as an estimate of predicting winning percentage.
+
+```{r, echo=FALSE}
+teams <- Teams %>% 
+  filter(yearID >= 1901 & lgID %in% c("AL", "NL")) %>%
+  group_by(yearID, teamID) %>%
+  mutate(WinPct = W/G,
+         rd = R - RA,
+         proj = ((R^2)/(R^2 + RA^2)))
+```
+
+With these statistics, we create our first plot.
+
+## Plot 1
+
+We create a scatterplot with a trend line, with x = Run Differential and 
+y = Winning Percentage for all the teams in our dataset from the 
+year 1901. We see a clear positive correlation and relationship between
+run differential and winning percentage, which suggest that the higher your run differential, it is more likely your winning percentage is higher. We can see
+that run differential is a strong linear indicator of winning percentage,
+regardless of league.
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+ggplot(teams, aes(x = rd, y = WinPct, col = lgID)) +
+   geom_point(size = 0.5, col = "black") +
+   geom_smooth(method="loess") + 
+   labs(title = "Historical Run Differential vs. Winning Percentage", 
+        subtitle = "Colored by League",
+        x = "Run Differential", y = "Win percentage")
+```
+
+## Plot 2
+
+Now, we want to analyze the relationship between team salary and a team's 
+winning percentage, from the point of an MLB front office. We ask ourselves
+the question: "How much money does it take to build a competent team?".
+
+In order to get team salary data, we conduct the following processing. We
+get the total salary for each team in our database, and then join it with
+our Teams table to get the performance statistics and standings for
+each team. We filter for teams beginning from the year 1985 to 
+restrict to the modern era of ownership.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#get team salaries
+teamsal <- Salaries %>%
+                group_by(yearID, teamID) %>%
+                dplyr::summarize(Salary = sum(salary, na.rm = TRUE)) %>%
+                select(yearID, teamID, Salary)
+#join team salaries with budget
+teamsSal <- teams %>%
+                filter(yearID >= 1985) %>%
+                left_join(teamsal, by = c("yearID", "teamID")) %>%
+                select(yearID, teamID, attendance, Salary, WinPct, lgID) %>%
+                as.data.frame(.)
+```
+
+Furthermore, we want to adjust for inflation in each decade. Thus, we will
+make a decade variable that we will facet on in our plot. We also filter
+to exclude the year 2020, as the database lacks the full data for the season
+that was changed by the COVID-19 pandemic.
+
+```{r, echo=FALSE}
+teamsSal = teamsSal %>% filter(yearID < 2020)
+teamsSal$decade = (teamsSal$yearID - (teamsSal$yearID %% 10))
+```
+
+We plot our Winning Percentage vs Salary plot below, facetted on each decade.
+We see that with each increasing decade, there is greater parity in salary
+and a more positive relationship with winning percentage and a team's salary. 
+However, from a front office point of view, we see that although more 
+money typically leads to more success, there are many teams in the 2000s
+and 2010s decades that had a high winning percentage with a low salary.
+Thus, keeping a balance is ideal and possible in the world of managing 
+baseball teams!
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(teamsSal, aes(x = WinPct, y = Salary, col = lgID)) +
+   geom_point(size = 0.5, col = "Black") +
+   geom_smooth(method="loess", se = F) + 
+   labs(title = "Historical Salary vs. Winning Percentage", 
+        subtitle = "Facetted on Each Decade",
+        x = "Win Percentage", y = "Salary") +
+  facet_grid(~ decade)
+```
+
+## Conclusion
+
+From our three research questions, we were able to answer and tell a story
+with the use of data and statistical visualizations. From the Lahman Database,
+we were able to investigate a time series analysis of the changing outcomes of 
+a baseball game, the geographical hot spots of producing MLB players,
+and the importance of run differential and team salary on a team's success.
+We truly enjoyed working with this database and we hope that you
+enjoyed our analysis.
+Thank you and feel free to reach out if you have any questions!
